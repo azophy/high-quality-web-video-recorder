@@ -20,13 +20,14 @@ fi
 
 FFPROBE_JSON="$(ffprobe -v error \
   -show_entries \
-stream=index,codec_type,codec_name,codec_long_name,profile,width,height,pix_fmt,r_frame_rate,avg_frame_rate,bit_rate,duration,nb_frames,color_space,color_transfer,color_primaries,field_order,level,codec_tag_string,display_aspect_ratio,sample_aspect_ratio,channels,channel_layout,sample_rate \
+stream=index,codec_type,codec_name,codec_long_name,profile,width,height,pix_fmt,r_frame_rate,avg_frame_rate,bit_rate,duration,nb_frames,color_space,color_transfer,color_primaries,field_order,level,codec_tag_string,display_aspect_ratio,sample_aspect_ratio,channels,channel_layout,sample_rate,tags \
   -show_entries \
 format=filename,format_name,format_long_name,duration,size,bit_rate,probe_score,tags \
   -of json "$FILE")"
 
 PYCODE=$(cat <<'PY'
 import json
+import subprocess
 import sys
 
 raw = sys.stdin.read().strip()
@@ -37,6 +38,7 @@ if not raw:
 data = json.loads(raw)
 streams = data.get("streams", [])
 fmt = data.get("format", {})
+file_path = fmt.get("filename")
 
 video = next((s for s in streams if s.get("codec_type") == "video"), None)
 audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
@@ -46,6 +48,80 @@ def to_float(x):
         return float(x)
     except Exception:
         return None
+
+def parse_tag_duration_to_seconds(v):
+    if not v:
+        return None
+    # Handles strings like "00:01:23.456000000"
+    try:
+        parts = str(v).split(":")
+        if len(parts) != 3:
+            return None
+        h, m, s = parts
+        return float(h) * 3600 + float(m) * 60 + float(s)
+    except Exception:
+        return None
+
+def probe_duration_from_packets(path):
+    if not path:
+        return None
+    # Fallback for containers (like some MediaRecorder webm files) where
+    # format/stream duration metadata is missing.
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "packet=pts_time,dts_time,duration_time",
+        "-of", "csv=p=0",
+        path,
+    ]
+    try:
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+    except Exception:
+        return None
+
+    max_end = None
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        cols = [c.strip() for c in line.split(",")]
+        # packet fields are in the order requested; missing values may appear as empty
+        pts = to_float(cols[0]) if len(cols) > 0 and cols[0] else None
+        dts = to_float(cols[1]) if len(cols) > 1 and cols[1] else None
+        dur = to_float(cols[2]) if len(cols) > 2 and cols[2] else None
+
+        ts = pts if pts is not None else dts
+        if ts is None:
+            continue
+
+        end = ts + (dur if dur is not None else 0.0)
+        if max_end is None or end > max_end:
+            max_end = end
+
+    return max_end
+
+def effective_duration_seconds():
+    # 1) container duration
+    d = to_float(fmt.get("duration"))
+    if d is not None and d > 0:
+        return d
+
+    # 2) format tags duration
+    d = parse_tag_duration_to_seconds((fmt.get("tags") or {}).get("DURATION"))
+    if d is not None and d > 0:
+        return d
+
+    # 3) stream duration fields / stream tags duration
+    best = None
+    for s in streams:
+        sd = to_float(s.get("duration"))
+        if sd is None:
+            sd = parse_tag_duration_to_seconds((s.get("tags") or {}).get("DURATION"))
+        if sd is not None and sd > 0:
+            best = sd if best is None else max(best, sd)
+    if best is not None:
+        return best
+
+    # 4) packet timestamp scan fallback
+    return probe_duration_from_packets(file_path)
 
 def fmt_bps(v):
     f = to_float(v)
@@ -87,13 +163,20 @@ def fmt_size(v):
     mb = f / 1_000_000
     return f"{int(f):,} bytes (~{mb:.2f} MB)"
 
+effective_duration = effective_duration_seconds()
+format_bitrate = to_float(fmt.get("bit_rate"))
+if format_bitrate is None:
+    size_bytes = to_float(fmt.get("size"))
+    if size_bytes is not None and effective_duration is not None and effective_duration > 0:
+        format_bitrate = (size_bytes * 8.0) / effective_duration
+
 print(f"File: {fmt.get('filename', 'N/A')}")
 print("\nContainer")
 print(f"- Format: {fmt.get('format_name', 'N/A')}")
 print(f"- Long name: {fmt.get('format_long_name', 'N/A')}")
-print(f"- Duration: {fmt_dur(fmt.get('duration'))}")
+print(f"- Duration: {fmt_dur(effective_duration)}")
 print(f"- Size: {fmt_size(fmt.get('size'))}")
-print(f"- Overall bitrate: {fmt_bps(fmt.get('bit_rate'))}")
+print(f"- Overall bitrate: {fmt_bps(format_bitrate)}")
 print(f"- Probe score: {fmt.get('probe_score', 'N/A')}")
 
 print("\nVideo")
