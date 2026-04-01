@@ -69,6 +69,26 @@
       appearance: none;
     }
 
+    .row.toggle {
+      justify-content: space-between;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 0.7rem 0.8rem;
+    }
+
+    .row.toggle label {
+      color: #ddd;
+      font-size: 0.9rem;
+    }
+
+    .row.toggle input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: #e53e3e;
+      cursor: pointer;
+    }
+
     .btn {
       flex: 1;
       min-height: 48px;
@@ -149,6 +169,11 @@
       </select>
     </div>
 
+    <div class="row toggle" id="desktopPortraitRow">
+      <label for="desktopPortraitToggle">Desktop portrait mode</label>
+      <input id="desktopPortraitToggle" type="checkbox" checked />
+    </div>
+
     <div class="row actions">
       <button class="btn" id="startBtn">&#9679; Record</button>
       <button class="btn" id="stopBtn" disabled>&#9632; Stop</button>
@@ -169,8 +194,19 @@
     const dlBtn    = document.getElementById('dlBtn');
     const codecSel = document.getElementById('codecSel');
     const status   = document.getElementById('status');
+    const desktopPortraitRow = document.getElementById('desktopPortraitRow');
+    const desktopPortraitToggle = document.getElementById('desktopPortraitToggle');
+
+    const PORTRAIT_RATIO = 3 / 4;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+      || navigator.userAgentData?.mobile === true;
 
     let stream, recorder, chunks = [], blobUrl;
+    let sourceWidth = 0;
+    let sourceHeight = 0;
+    let drawCanvas = null;
+    let drawCtx = null;
+    let drawFrameHandle = 0;
 
     const CODECS = {
       vp9:  { mime: 'video/webm;codecs=vp9',      ext: 'webm' },
@@ -195,7 +231,70 @@
       return 'webm';
     }
 
+    function shouldUseDesktopPortraitMode() {
+      return !isMobile && desktopPortraitToggle.checked && sourceWidth > sourceHeight;
+    }
+
+    function applyPreviewLayout() {
+      if (!sourceWidth || !sourceHeight) return;
+
+      if (shouldUseDesktopPortraitMode()) {
+        preview.style.aspectRatio = `${PORTRAIT_RATIO}`;
+        preview.style.objectFit = 'cover';
+      } else {
+        preview.style.aspectRatio = `${sourceWidth} / ${sourceHeight}`;
+        preview.style.objectFit = 'contain';
+      }
+
+      playback.style.aspectRatio = `${sourceWidth} / ${sourceHeight}`;
+    }
+
+    function stopCanvasPipeline() {
+      if (drawFrameHandle) {
+        cancelAnimationFrame(drawFrameHandle);
+        drawFrameHandle = 0;
+      }
+      drawCtx = null;
+      drawCanvas = null;
+    }
+
+    function createDesktopPortraitStream() {
+      const srcW = preview.videoWidth || sourceWidth;
+      const srcH = preview.videoHeight || sourceHeight;
+      const outH = srcH;
+      const outW = Math.max(1, Math.round(outH * PORTRAIT_RATIO));
+      const cropW = Math.min(srcW, Math.round(srcH * PORTRAIT_RATIO));
+      const sx = Math.max(0, Math.floor((srcW - cropW) / 2));
+
+      drawCanvas = document.createElement('canvas');
+      drawCanvas.width = outW;
+      drawCanvas.height = outH;
+      drawCtx = drawCanvas.getContext('2d', { alpha: false, desynchronized: true });
+
+      const render = () => {
+        if (!drawCtx) return;
+        drawCtx.drawImage(preview, sx, 0, cropW, srcH, 0, 0, outW, outH);
+        drawFrameHandle = requestAnimationFrame(render);
+      };
+      render();
+
+      const canvasStream = drawCanvas.captureStream(30);
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) canvasStream.addTrack(audioTrack);
+
+      return {
+        stream: canvasStream,
+        aspect: `${outW} / ${outH}`,
+      };
+    }
+
     async function initCamera() {
+      if (isMobile) {
+        desktopPortraitRow.style.display = 'none';
+      } else {
+        desktopPortraitToggle.addEventListener('change', applyPreviewLayout);
+      }
+
       const videoProfiles = [
         {
           facingMode: { ideal: 'user' },
@@ -216,16 +315,15 @@
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
           preview.srcObject = stream;
+          await preview.play().catch(() => {});
 
           const settings = stream.getVideoTracks()[0]?.getSettings?.() || {};
-          const w = Number(settings.width);
-          const h = Number(settings.height);
+          sourceWidth = Number(settings.width) || 0;
+          sourceHeight = Number(settings.height) || 0;
 
-          if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
-            const ratio = `${w} / ${h}`;
-            preview.style.aspectRatio = ratio;
-            playback.style.aspectRatio = ratio;
-            status.textContent = `Camera ready (${w}x${h}).`;
+          if (sourceWidth > 0 && sourceHeight > 0) {
+            applyPreviewLayout();
+            status.textContent = `Camera ready (${sourceWidth}x${sourceHeight}).`;
           } else {
             status.textContent = 'Camera ready.';
           }
@@ -241,22 +339,35 @@
     startBtn.addEventListener('click', () => {
       if (!stream) return;
       chunks = [];
+      stopCanvasPipeline();
 
       const key  = codecSel.value;
       const mime = pickMime(key);
       if (!mime) { status.textContent = 'No supported codec found.'; return; }
 
-      recorder = new MediaRecorder(stream, {
+      let recordingStream = stream;
+      let playbackAspect = `${sourceWidth || 3} / ${sourceHeight || 4}`;
+
+      if (shouldUseDesktopPortraitMode()) {
+        const portrait = createDesktopPortraitStream();
+        recordingStream = portrait.stream;
+        playbackAspect = portrait.aspect;
+      }
+
+      recorder = new MediaRecorder(recordingStream, {
         mimeType: mime,
         videoBitsPerSecond: 20_000_000
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
+        stopCanvasPipeline();
+
         const blob = new Blob(chunks, { type: mime });
         if (blobUrl) URL.revokeObjectURL(blobUrl);
         blobUrl = URL.createObjectURL(blob);
 
-        playback.src     = blobUrl;
+        playback.src = blobUrl;
+        playback.style.aspectRatio = playbackAspect;
         playback.style.display = 'block';
 
         dlBtn.disabled = false;
@@ -275,7 +386,7 @@
       stopBtn.disabled  = false;
       dlBtn.disabled = true;
       playback.style.display = 'none';
-      status.innerHTML  = '<span id="recDot"></span>Recording…';
+      status.innerHTML = '<span id="recDot"></span>Recording…';
     });
 
     stopBtn.addEventListener('click', () => {
