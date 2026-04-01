@@ -30,7 +30,7 @@
     #preview {
       width: 100%;
       max-width: 360px;
-      aspect-ratio: 9 / 16;
+      aspect-ratio: 45 / 64;
       background: #000;
       border-radius: 12px;
       object-fit: cover;
@@ -106,7 +106,7 @@
     #playback {
       width: 100%;
       max-width: 360px;
-      aspect-ratio: 9 / 16;
+      aspect-ratio: 45 / 64;
       background: #000;
       border-radius: 12px;
       object-fit: cover;
@@ -178,7 +178,7 @@
     async function initCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } },
+          video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1024 } },
           audio: true
         });
         preview.srcObject = stream;
@@ -196,7 +196,10 @@
       const mime = pickMime(key);
       if (!mime) { status.textContent = 'No supported codec found.'; return; }
 
-      recorder = new MediaRecorder(stream, { mimeType: mime });
+      recorder = new MediaRecorder(stream, {
+        mimeType: mime,
+        videoBitsPerSecond: 20_000_000
+      });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: mime });
