@@ -198,8 +198,11 @@
     const desktopPortraitToggle = document.getElementById('desktopPortraitToggle');
 
     const PORTRAIT_RATIO = 3 / 4;
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    const uaSaysMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
       || navigator.userAgentData?.mobile === true;
+    const platformHint = navigator.userAgentData?.platform || navigator.platform || '';
+    const isDesktopPlatform = /Win|Mac|Linux|X11|CrOS/i.test(platformHint);
+    const isMobileDevice = uaSaysMobile && !isDesktopPlatform;
 
     let stream, recorder, chunks = [], blobUrl;
     let sourceWidth = 0;
@@ -232,7 +235,7 @@
     }
 
     function shouldUseDesktopPortraitMode() {
-      return !isMobile && desktopPortraitToggle.checked && sourceWidth > sourceHeight;
+      return !isMobileDevice && desktopPortraitToggle.checked && sourceWidth > sourceHeight;
     }
 
     function applyPreviewLayout() {
@@ -289,9 +292,10 @@
     }
 
     async function initCamera() {
-      if (isMobile) {
+      if (isMobileDevice) {
         desktopPortraitRow.style.display = 'none';
       } else {
+        desktopPortraitRow.style.display = '';
         desktopPortraitToggle.addEventListener('change', applyPreviewLayout);
       }
 
