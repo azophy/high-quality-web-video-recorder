@@ -31,10 +31,10 @@
 
     #preview {
       width: min(100%, 460px);
-      aspect-ratio: 45 / 64;
+      aspect-ratio: 9 / 16;
       background: #000;
       border-radius: 12px;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
     }
 
@@ -108,10 +108,10 @@
 
     #playback {
       width: min(100%, 460px);
-      aspect-ratio: 45 / 64;
+      aspect-ratio: 9 / 16;
       background: #000;
       border-radius: 12px;
-      object-fit: cover;
+      object-fit: contain;
       display: none;
     }
 
@@ -196,25 +196,22 @@
     }
 
     async function initCamera() {
-      const aspect = 45 / 64;
+      const aspect = 9 / 16;
       const videoProfiles = [
         {
           facingMode: { ideal: 'user' },
-          width: { exact: 720 },
-          height: { exact: 1024 },
-          aspectRatio: { exact: aspect },
-          resizeMode: 'crop-and-scale'
-        },
-        {
-          facingMode: { ideal: 'user' },
-          width: { min: 720, ideal: 720, max: 720 },
-          height: { min: 1024, ideal: 1024, max: 1024 },
-          aspectRatio: { ideal: aspect },
-          resizeMode: 'crop-and-scale'
-        },
-        {
-          facingMode: { ideal: 'user' },
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
           aspectRatio: { ideal: aspect }
+        },
+        {
+          facingMode: { ideal: 'user' },
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+          aspectRatio: { ideal: aspect }
+        },
+        {
+          facingMode: { ideal: 'user' }
         }
       ];
 
@@ -233,7 +230,7 @@
         }
       }
 
-      status.textContent = 'Camera error: unable to get portrait 720x1024 stream.';
+      status.textContent = 'Camera error: unable to access camera stream.';
     }
 
     startBtn.addEventListener('click', () => {
