@@ -83,7 +83,7 @@
 
     #startBtn  { background: #e53e3e; color: #fff; }
     #stopBtn   { background: #444;    color: #eee; }
-    #dlBtn     { background: #276749; color: #fff; display: none; }
+    #dlBtn     { background: #276749; color: #fff; }
 
     #status {
       font-size: 0.8rem;
@@ -136,7 +136,7 @@
 
     <div id="status"></div>
 
-    <button class="btn" id="dlBtn">&#8681; Download</button>
+    <button class="btn" id="dlBtn" disabled>&#8681; Download Result</button>
   </div>
 
   <video id="playback" controls playsinline></video>
@@ -209,7 +209,7 @@
         playback.src     = blobUrl;
         playback.style.display = 'block';
 
-        dlBtn.style.display = '';
+        dlBtn.disabled = false;
         dlBtn.onclick = () => {
           const a = document.createElement('a');
           a.href     = blobUrl;
@@ -223,7 +223,7 @@
       recorder.start(200);
       startBtn.disabled = true;
       stopBtn.disabled  = false;
-      dlBtn.style.display = 'none';
+      dlBtn.disabled = true;
       playback.style.display = 'none';
       status.innerHTML  = '<span id="recDot"></span>Recording…';
     });
