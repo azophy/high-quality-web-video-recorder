@@ -31,7 +31,7 @@
 
     #preview {
       width: min(100%, 460px);
-      aspect-ratio: 9 / 16;
+      aspect-ratio: 3 / 4;
       background: #000;
       border-radius: 12px;
       object-fit: contain;
@@ -108,7 +108,7 @@
 
     #playback {
       width: min(100%, 460px);
-      aspect-ratio: 9 / 16;
+      aspect-ratio: 3 / 4;
       background: #000;
       border-radius: 12px;
       object-fit: contain;
@@ -196,19 +196,16 @@
     }
 
     async function initCamera() {
-      const aspect = 9 / 16;
       const videoProfiles = [
         {
           facingMode: { ideal: 'user' },
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-          aspectRatio: { ideal: aspect }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
         {
           facingMode: { ideal: 'user' },
-          width: { ideal: 1080 },
-          height: { ideal: 1920 },
-          aspectRatio: { ideal: aspect }
+          width: { ideal: 640 },
+          height: { ideal: 480 }
         },
         {
           facingMode: { ideal: 'user' }
@@ -221,9 +218,17 @@
           preview.srcObject = stream;
 
           const settings = stream.getVideoTracks()[0]?.getSettings?.() || {};
-          const w = settings.width ?? '?';
-          const h = settings.height ?? '?';
-          status.textContent = `Camera ready (${w}x${h}).`;
+          const w = Number(settings.width);
+          const h = Number(settings.height);
+
+          if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+            const ratio = `${w} / ${h}`;
+            preview.style.aspectRatio = ratio;
+            playback.style.aspectRatio = ratio;
+            status.textContent = `Camera ready (${w}x${h}).`;
+          } else {
+            status.textContent = 'Camera ready.';
+          }
           return;
         } catch (e) {
           // Try next profile
