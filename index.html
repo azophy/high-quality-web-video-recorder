@@ -176,16 +176,44 @@
     }
 
     async function initCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1024 } },
-          audio: true
-        });
-        preview.srcObject = stream;
-        status.textContent = 'Camera ready.';
-      } catch (e) {
-        status.textContent = 'Camera error: ' + e.message;
+      const aspect = 45 / 64;
+      const videoProfiles = [
+        {
+          facingMode: { ideal: 'user' },
+          width: { exact: 720 },
+          height: { exact: 1024 },
+          aspectRatio: { exact: aspect },
+          resizeMode: 'crop-and-scale'
+        },
+        {
+          facingMode: { ideal: 'user' },
+          width: { min: 720, ideal: 720, max: 720 },
+          height: { min: 1024, ideal: 1024, max: 1024 },
+          aspectRatio: { ideal: aspect },
+          resizeMode: 'crop-and-scale'
+        },
+        {
+          facingMode: { ideal: 'user' },
+          aspectRatio: { ideal: aspect }
+        }
+      ];
+
+      for (const video of videoProfiles) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
+          preview.srcObject = stream;
+
+          const settings = stream.getVideoTracks()[0]?.getSettings?.() || {};
+          const w = settings.width ?? '?';
+          const h = settings.height ?? '?';
+          status.textContent = `Camera ready (${w}x${h}).`;
+          return;
+        } catch (e) {
+          // Try next profile
+        }
       }
+
+      status.textContent = 'Camera error: unable to get portrait 720x1024 stream.';
     }
 
     startBtn.addEventListener('click', () => {
