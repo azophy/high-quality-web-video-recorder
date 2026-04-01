@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Video Recorder</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,21 +15,22 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 1rem;
-      gap: 1rem;
+      padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+      gap: 0.9rem;
     }
 
     h1 {
-      font-size: 1rem;
-      font-weight: 500;
+      width: min(100%, 460px);
+      font-size: 0.95rem;
+      font-weight: 600;
       color: #aaa;
       letter-spacing: 0.05em;
       text-transform: uppercase;
+      text-align: left;
     }
 
     #preview {
-      width: 100%;
-      max-width: 360px;
+      width: min(100%, 460px);
       aspect-ratio: 45 / 64;
       background: #000;
       border-radius: 12px;
@@ -41,13 +42,12 @@
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-      width: 100%;
-      max-width: 360px;
+      width: min(100%, 460px);
     }
 
     .row {
       display: flex;
-      gap: 0.5rem;
+      gap: 0.6rem;
       align-items: center;
     }
 
@@ -59,24 +59,27 @@
 
     select {
       flex: 1;
+      min-height: 46px;
       background: #222;
       color: #eee;
       border: 1px solid #444;
-      border-radius: 8px;
-      padding: 0.5rem 0.75rem;
-      font-size: 0.9rem;
+      border-radius: 10px;
+      padding: 0.55rem 0.8rem;
+      font-size: 1rem;
       appearance: none;
     }
 
     .btn {
       flex: 1;
-      padding: 0.75rem;
-      border-radius: 8px;
+      min-height: 48px;
+      padding: 0.8rem;
+      border-radius: 10px;
       border: none;
-      font-size: 0.95rem;
-      font-weight: 500;
+      font-size: 1rem;
+      font-weight: 600;
       cursor: pointer;
       transition: opacity 0.15s;
+      touch-action: manipulation;
     }
     .btn:active { opacity: 0.7; }
     .btn:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -86,7 +89,7 @@
     #dlBtn     { background: #276749; color: #fff; }
 
     #status {
-      font-size: 0.8rem;
+      font-size: 0.88rem;
       color: #aaa;
       text-align: center;
       min-height: 1.2em;
@@ -104,13 +107,30 @@
     @keyframes blink { 50% { opacity: 0; } }
 
     #playback {
-      width: 100%;
-      max-width: 360px;
+      width: min(100%, 460px);
       aspect-ratio: 45 / 64;
       background: #000;
       border-radius: 12px;
       object-fit: cover;
       display: none;
+    }
+
+    @media (max-width: 420px) {
+      .row {
+        flex-wrap: wrap;
+      }
+
+      label {
+        width: 100%;
+      }
+
+      .row.actions {
+        flex-wrap: nowrap;
+      }
+
+      .btn {
+        min-height: 50px;
+      }
     }
   </style>
 </head>
@@ -129,7 +149,7 @@
       </select>
     </div>
 
-    <div class="row">
+    <div class="row actions">
       <button class="btn" id="startBtn">&#9679; Record</button>
       <button class="btn" id="stopBtn" disabled>&#9632; Stop</button>
     </div>
