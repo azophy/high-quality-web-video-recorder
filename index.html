@@ -198,6 +198,12 @@
     const desktopPortraitToggle = document.getElementById('desktopPortraitToggle');
 
     const PORTRAIT_RATIO = 3 / 4;
+
+    // IMPORTANT: device classification is intentionally "physical-device aware".
+    // - uaSaysMobile can become true in Chrome DevTools device emulation on desktop.
+    // - We combine UA + platform hints so desktop OS (Win/Mac/Linux/CrOS) is treated as desktop
+    //   even when viewport is mobile-sized / emulated.
+    // This preserves desktop portrait logic during emulation while keeping real mobile behavior untouched.
     const uaSaysMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
       || navigator.userAgentData?.mobile === true;
     const platformHint = navigator.userAgentData?.platform || navigator.platform || '';
@@ -235,6 +241,11 @@
     }
 
     function shouldUseDesktopPortraitMode() {
+      // IMPORTANT decision gate:
+      // 1) Never modify real mobile capture path (keep existing mobile logic stable).
+      // 2) Only enable when user explicitly keeps desktop portrait mode ON.
+      // 3) Only apply when incoming camera track is landscape (w > h).
+      //    If source is already portrait, we avoid extra canvas processing.
       return !isMobileDevice && desktopPortraitToggle.checked && sourceWidth > sourceHeight;
     }
 
@@ -242,13 +253,18 @@
       if (!sourceWidth || !sourceHeight) return;
 
       if (shouldUseDesktopPortraitMode()) {
+        // Preview UX on desktop portrait mode:
+        // force portrait frame + cover crop so what user sees matches intended output framing.
         preview.style.aspectRatio = `${PORTRAIT_RATIO}`;
         preview.style.objectFit = 'cover';
       } else {
+        // Default/native preview behavior (used by mobile and normal desktop mode).
         preview.style.aspectRatio = `${sourceWidth} / ${sourceHeight}`;
         preview.style.objectFit = 'contain';
       }
 
+      // Playback ratio is set to native source by default and overridden at record-time
+      // when canvas portrait stream is used.
       playback.style.aspectRatio = `${sourceWidth} / ${sourceHeight}`;
     }
 
@@ -264,6 +280,12 @@
     function createDesktopPortraitStream() {
       const srcW = preview.videoWidth || sourceWidth;
       const srcH = preview.videoHeight || sourceHeight;
+
+      // IMPORTANT orientation-preserving transform:
+      // - Keep source height to preserve detail vertically.
+      // - Compute portrait output width from PORTRAIT_RATIO.
+      // - Center-crop landscape source horizontally into a portrait frame.
+      // This avoids relying on metadata rotation and produces a truly portrait encoded video.
       const outH = srcH;
       const outW = Math.max(1, Math.round(outH * PORTRAIT_RATIO));
       const cropW = Math.min(srcW, Math.round(srcH * PORTRAIT_RATIO));
@@ -352,6 +374,8 @@
       let recordingStream = stream;
       let playbackAspect = `${sourceWidth || 3} / ${sourceHeight || 4}`;
 
+      // IMPORTANT: mobile path remains raw MediaRecorder(stream) by default.
+      // We only swap to canvas stream for desktop portrait mode.
       if (shouldUseDesktopPortraitMode()) {
         const portrait = createDesktopPortraitStream();
         recordingStream = portrait.stream;
