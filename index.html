@@ -323,24 +323,48 @@
         desktopPortraitToggle.addEventListener('change', applyPreviewLayout);
       }
 
-      const videoProfiles = [
-        {
-          facingMode: { ideal: 'user' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, min: 24 }
-        },
-        {
-          facingMode: { ideal: 'user' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30, min: 24 }
-        },
-        {
-          facingMode: { ideal: 'user' },
-          frameRate: { ideal: 30 }
-        }
-      ];
+      // IMPORTANT: separate profiles for mobile vs desktop.
+      // Mobile devices struggle to encode 1080x1920 H.264 Baseline in real-time,
+      // resulting in severe frame drops (e.g. 16fps instead of 30fps).
+      // 720x1280 at 30fps looks much better than 1080x1920 at 16fps.
+      // Desktop requests 1920x1080 landscape; the canvas pipeline crops to portrait.
+      const videoProfiles = isMobileDevice
+        ? [
+            {
+              facingMode: { ideal: 'user' },
+              width: { ideal: 720 },
+              height: { ideal: 1280 },
+              frameRate: { ideal: 30, min: 24 }
+            },
+            {
+              facingMode: { ideal: 'user' },
+              width: { ideal: 480 },
+              height: { ideal: 854 },
+              frameRate: { ideal: 30, min: 24 }
+            },
+            {
+              facingMode: { ideal: 'user' },
+              frameRate: { ideal: 30 }
+            }
+          ]
+        : [
+            {
+              facingMode: { ideal: 'user' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+              frameRate: { ideal: 30, min: 24 }
+            },
+            {
+              facingMode: { ideal: 'user' },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30, min: 24 }
+            },
+            {
+              facingMode: { ideal: 'user' },
+              frameRate: { ideal: 30 }
+            }
+          ];
 
       for (const video of videoProfiles) {
         try {
@@ -387,9 +411,12 @@
         playbackAspect = portrait.aspect;
       }
 
+      // Mobile: 8 Mbps is sufficient for 720x1280@30fps and reduces encoder stress.
+      // Desktop: 20 Mbps for 1080x1920 canvas output.
+      const targetBitrate = isMobileDevice ? 8_000_000 : 20_000_000;
       recorder = new MediaRecorder(recordingStream, {
         mimeType: mime,
-        videoBitsPerSecond: 20_000_000
+        videoBitsPerSecond: targetBitrate
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
