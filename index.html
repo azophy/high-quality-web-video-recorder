@@ -166,16 +166,24 @@
       <label for="codecSel">Codec</label>
       <select id="codecSel">
         <option value="vp9">VP9 (WebM)</option>
-        <option value="h264">H.264 (MP4)</option>
+        <option value="h264" selected>H.264 (MP4)</option>
       </select>
     </div>
 
     <div class="row">
       <label for="resolutionSel">Resolution</label>
       <select id="resolutionSel">
-        <option value="4k">4K (UHD 3840x2160)</option>
+        <option value="4k" selected>4K (UHD 3840x2160)</option>
         <option value="2k">2K (QHD 2560x1440)</option>
-        <option value="1k" selected>1K (1080p 1920x1080)</option>
+        <option value="1k">1K (1080p 1920x1080)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label for="fpsSel">Frame Rate</label>
+      <select id="fpsSel">
+        <option value="30">30 FPS</option>
+        <option value="60" selected>60 FPS</option>
       </select>
     </div>
 
@@ -204,6 +212,7 @@
     const dlBtn    = document.getElementById('dlBtn');
     const codecSel = document.getElementById('codecSel');
     const resolutionSel = document.getElementById('resolutionSel');
+    const fpsSel = document.getElementById('fpsSel');
     const status   = document.getElementById('status');
     const desktopPortraitRow = document.getElementById('desktopPortraitRow');
     const desktopPortraitToggle = document.getElementById('desktopPortraitToggle');
@@ -325,7 +334,7 @@
       };
       render();
 
-      const canvasStream = drawCanvas.captureStream(30);
+      const canvasStream = drawCanvas.captureStream(parseInt(fpsSel.value, 10));
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) canvasStream.addTrack(audioTrack);
 
@@ -350,29 +359,30 @@
       }
 
       const selected = getSelectedResolution();
+      const fps = parseInt(fpsSel.value, 10);
 
       const videoProfiles = [
         {
           facingMode: { ideal: 'user' },
           width: { ideal: selected.width },
           height: { ideal: selected.height },
-          frameRate: { ideal: 30, min: 24 }
+          frameRate: { ideal: fps, min: 24 }
         },
         {
           facingMode: { ideal: 'user' },
           width: { ideal: 1920 },
           height: { ideal: 1080 },
-          frameRate: { ideal: 30, min: 24 }
+          frameRate: { ideal: fps, min: 24 }
         },
         {
           facingMode: { ideal: 'user' },
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          frameRate: { ideal: 30, min: 24 }
+          frameRate: { ideal: fps, min: 24 }
         },
         {
           facingMode: { ideal: 'user' },
-          frameRate: { ideal: 30 }
+          frameRate: { ideal: fps }
         }
       ];
 
