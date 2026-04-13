@@ -170,6 +170,15 @@
       </select>
     </div>
 
+    <div class="row">
+      <label for="resolutionSel">Resolution</label>
+      <select id="resolutionSel">
+        <option value="4k">4K (UHD 3840x2160)</option>
+        <option value="2k">2K (QHD 2560x1440)</option>
+        <option value="1k" selected>1K (1080p 1920x1080)</option>
+      </select>
+    </div>
+
     <div class="row toggle" id="desktopPortraitRow">
       <label for="desktopPortraitToggle">Desktop portrait mode</label>
       <input id="desktopPortraitToggle" type="checkbox" checked />
@@ -194,6 +203,7 @@
     const stopBtn  = document.getElementById('stopBtn');
     const dlBtn    = document.getElementById('dlBtn');
     const codecSel = document.getElementById('codecSel');
+    const resolutionSel = document.getElementById('resolutionSel');
     const status   = document.getElementById('status');
     const desktopPortraitRow = document.getElementById('desktopPortraitRow');
     const desktopPortraitToggle = document.getElementById('desktopPortraitToggle');
@@ -222,6 +232,16 @@
       vp9:  { mime: 'video/webm;codecs=vp9',      ext: 'webm' },
       h264: { mime: 'video/mp4;codecs=avc1.42E01E', ext: 'mp4'  },
     };
+
+    const RESOLUTIONS = {
+      '4k': { label: '4K UHD', width: 3840, height: 2160, bitrate: 40_000_000 },
+      '2k': { label: '2K QHD', width: 2560, height: 1440, bitrate: 28_000_000 },
+      '1k': { label: '1K 1080p', width: 1920, height: 1080, bitrate: 20_000_000 },
+    };
+
+    function getSelectedResolution() {
+      return RESOLUTIONS[resolutionSel.value] || RESOLUTIONS['1k'];
+    }
 
     function pickMime(key) {
       const preferred = CODECS[key].mime;
@@ -283,13 +303,13 @@
       const srcH = preview.videoHeight || sourceHeight;
 
       // IMPORTANT orientation-preserving transform:
-      // - Target output is 1080x1920 (portrait 9:16).
+      // - Target output is selected resolution in portrait (e.g. 1080x1920,
+      //   1440x2560, 2160x3840).
       // - From the landscape source, crop a 9:16 center strip (using full
       //   height, narrow horizontal slice) then scale it into the canvas.
-      // - Output canvas is always 1080x1920 for consistent portrait output.
-      //   If the source is smaller than 1080p the crop is upscaled.
-      const outW = 1080;
-      const outH = 1920;
+      const selected = getSelectedResolution();
+      const outW = selected.height;
+      const outH = selected.width;
       const cropW = Math.min(srcW, Math.round(srcH * PORTRAIT_RATIO));
       const sx = Math.max(0, Math.floor((srcW - cropW) / 2));
 
@@ -315,15 +335,29 @@
       };
     }
 
+    function stopStreamTracks() {
+      if (!stream) return;
+      for (const track of stream.getTracks()) track.stop();
+      stream = null;
+      preview.srcObject = null;
+    }
+
     async function initCamera() {
       if (isMobileDevice) {
         desktopPortraitRow.style.display = 'none';
       } else {
         desktopPortraitRow.style.display = '';
-        desktopPortraitToggle.addEventListener('change', applyPreviewLayout);
       }
 
+      const selected = getSelectedResolution();
+
       const videoProfiles = [
+        {
+          facingMode: { ideal: 'user' },
+          width: { ideal: selected.width },
+          height: { ideal: selected.height },
+          frameRate: { ideal: 30, min: 24 }
+        },
         {
           facingMode: { ideal: 'user' },
           width: { ideal: 1920 },
@@ -354,9 +388,9 @@
 
           if (sourceWidth > 0 && sourceHeight > 0) {
             applyPreviewLayout();
-            status.textContent = `Camera ready (${sourceWidth}x${sourceHeight}).`;
+            status.textContent = `Camera ready (${sourceWidth}x${sourceHeight}) • target ${selected.label}.`;
           } else {
-            status.textContent = 'Camera ready.';
+            status.textContent = `Camera ready • target ${selected.label}.`;
           }
           return;
         } catch (e) {
@@ -389,7 +423,7 @@
 
       recorder = new MediaRecorder(recordingStream, {
         mimeType: mime,
-        videoBitsPerSecond: 20_000_000
+        videoBitsPerSecond: getSelectedResolution().bitrate
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
@@ -426,6 +460,20 @@
       recorder.stop();
       startBtn.disabled = false;
       stopBtn.disabled  = true;
+    });
+
+    if (!isMobileDevice) {
+      desktopPortraitToggle.addEventListener('change', applyPreviewLayout);
+    }
+
+    resolutionSel.addEventListener('change', async () => {
+      if (recorder && recorder.state === 'recording') return;
+      stopCanvasPipeline();
+      stopStreamTracks();
+      sourceWidth = 0;
+      sourceHeight = 0;
+      status.textContent = 'Switching resolution…';
+      await initCamera();
     });
 
     initCamera();
