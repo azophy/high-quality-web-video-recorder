@@ -405,6 +405,7 @@
           return;
         } catch (e) {
           console.warn('[Camera] Profile failed, trying next…', e);
+          status.textContent = `Camera init failed (${e.name}), retrying…`;
         }
       }
 
@@ -419,7 +420,11 @@
 
       const key  = codecSel.value;
       const mime = pickMime(key);
-      if (!mime) { status.textContent = 'No supported codec found.'; return; }
+      if (!mime) {
+        console.error('[Recorder] No supported codec found for:', CODECS[key].mime);
+        status.textContent = 'No supported codec found.';
+        return;
+      }
 
       let recordingStream = stream;
       let playbackAspect = `${sourceWidth || 3} / ${sourceHeight || 4}`;
@@ -438,8 +443,10 @@
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onerror = e => {
-        console.error('[Recorder] Error:', e.error?.name, e.error?.message || e);
-        status.textContent = `Recording error: ${e.error?.name || 'unknown'}`;
+        const name = e.error?.name || 'unknown';
+        const msg  = e.error?.message || '';
+        console.error('[Recorder] Error:', name, msg);
+        status.textContent = `Recording error: ${name}${msg ? ' — ' + msg : ''}`;
         startBtn.disabled = false;
         stopBtn.disabled  = true;
       };
@@ -469,7 +476,7 @@
         recorder.start(200);
       } catch (e) {
         console.error('[Recorder] start() failed:', e.name, e.message);
-        status.textContent = `Failed to start recording: ${e.name}`;
+        status.textContent = `Failed to start recording: ${e.name}${e.message ? ' — ' + e.message : ''}`;
         startBtn.disabled = false;
         stopBtn.disabled  = true;
         return;
