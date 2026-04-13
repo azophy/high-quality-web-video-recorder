@@ -404,10 +404,11 @@
           }
           return;
         } catch (e) {
-          // Try next profile
+          console.warn('[Camera] Profile failed, trying next…', e);
         }
       }
 
+      console.error('[Camera] All profiles failed – unable to access camera.');
       status.textContent = 'Camera error: unable to access camera stream.';
     }
 
@@ -436,6 +437,12 @@
         videoBitsPerSecond: getSelectedResolution().bitrate
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onerror = e => {
+        console.error('[Recorder] Error:', e.error?.name, e.error?.message || e);
+        status.textContent = `Recording error: ${e.error?.name || 'unknown'}`;
+        startBtn.disabled = false;
+        stopBtn.disabled  = true;
+      };
       recorder.onstop = () => {
         stopCanvasPipeline();
 
@@ -458,7 +465,15 @@
         status.textContent = 'Done. Playback ready.';
       };
 
-      recorder.start(200);
+      try {
+        recorder.start(200);
+      } catch (e) {
+        console.error('[Recorder] start() failed:', e.name, e.message);
+        status.textContent = `Failed to start recording: ${e.name}`;
+        startBtn.disabled = false;
+        stopBtn.disabled  = true;
+        return;
+      }
       startBtn.disabled = true;
       stopBtn.disabled  = false;
       dlBtn.disabled = true;
