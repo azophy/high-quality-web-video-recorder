@@ -441,8 +441,10 @@
         mimeType: mime,
         videoBitsPerSecond: getSelectedResolution().bitrate
       });
+      let recorderHadError = false;
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onerror = e => {
+        recorderHadError = true;
         const name = e.error?.name || 'unknown';
         const msg  = e.error?.message || '';
         console.error('[Recorder] Error:', name, msg);
@@ -452,6 +454,8 @@
       };
       recorder.onstop = () => {
         stopCanvasPipeline();
+
+        if (recorderHadError) return;
 
         const blob = new Blob(chunks, { type: mime });
         if (blobUrl) URL.revokeObjectURL(blobUrl);
